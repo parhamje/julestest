@@ -1,200 +1,213 @@
+// Canvas setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const scoreDisplay = document.getElementById('score');
+canvas.width = 800;
+canvas.height = 600;
 
-// Game variables
+// Paddle variables
+const paddleHeight = 10;
+const paddleWidth = 75;
+let paddleX = (canvas.width - paddleWidth) / 2;
+const paddleSpeed = 7;
+
+// Ball variables
+const ballRadius = 10;
+let ballX = canvas.width / 2;
+let ballY = canvas.height - 30;
+let ballSpeedX = 2; // Initial X speed
+let ballSpeedY = -2; // Initial Y speed
+
+// Brick variables
+const brickRowCount = 3;
+const brickColumnCount = 5;
+const brickWidth = 75;
+const brickHeight = 20;
+const brickPadding = 10;
+const brickOffsetTop = 30;
+const brickOffsetLeft = 30;
+
+// Game state variables
 let score = 0;
-const gravity = 0.5;
-const jumpForce = 10;
-const playerSpeed = 5;
+let lives = 3;
 
-// Player object
-const player = {
-    x: 50,
-    y: canvas.height - platforms[0].height - player.height,
-    width: 30,
-    height: 50,
-    dx: 0,
-    dy: 0,
-    onGround: false
-};
-
-// Platforms array
-const platforms = [
-    { x: 0, y: canvas.height - 20, width: canvas.width, height: 20 }, // Ground platform
-    { x: 200, y: canvas.height - 100, width: 150, height: 20 },
-    { x: 400, y: canvas.height - 180, width: 100, height: 20 }
-];
-
-// Coins array
-const coins = [
-    { x: 250, y: canvas.height - 130, width: 20, height: 20, collected: false },
-    { x: 450, y: canvas.height - 210, width: 20, height: 20, collected: false }
-];
-
-// Keyboard input handling
-const keys = {
-    left: false,
-    right: false,
-    up: false
-};
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') keys.left = true;
-    if (e.key === 'ArrowRight') keys.right = true;
-    if (e.key === 'ArrowUp') keys.up = true;
-});
-
-document.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowLeft') keys.left = false;
-    if (e.key === 'ArrowRight') keys.right = false;
-    if (e.key === 'ArrowUp') keys.up = false;
-});
-
-// Draw player
-function drawPlayer() {
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-}
-
-// Update player position
-function updatePlayer() {
-    // Horizontal movement
-    if (keys.left) {
-        player.dx = -playerSpeed;
-    } else if (keys.right) {
-        player.dx = playerSpeed;
-    } else {
-        player.dx = 0;
+// Bricks array
+const bricks = [];
+for (let c = 0; c < brickColumnCount; c++) {
+    bricks[c] = [];
+    for (let r = 0; r < brickRowCount; r++) {
+        bricks[c][r] = { x: 0, y: 0, status: 1 };
     }
+}
 
-    // Vertical movement (jumping)
-    if (keys.up && player.onGround) {
-        player.dy = -jumpForce;
-        player.onGround = false;
+// Score display element
+const scoreDisplay = document.getElementById('score');
+// Initial score and lives display will be handled by the first call to draw()
+
+// --- Paddle Functionality ---
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+    ctx.fillStyle = '#0095DD';
+    ctx.fill();
+    ctx.closePath();
+}
+
+let rightPressed = false;
+let leftPressed = false;
+
+document.addEventListener("keydown", keyDownHandler, false);
+document.addEventListener("keyup", keyUpHandler, false);
+
+function keyDownHandler(e) {
+    if (e.key == "Right" || e.key == "ArrowRight") {
+        rightPressed = true;
+    } else if (e.key == "Left" || e.key == "ArrowLeft") {
+        leftPressed = true;
     }
-
-    // Apply gravity
-    player.dy += gravity;
-
-    // Update position
-    player.x += player.dx;
-    player.y += player.dy;
-
-    // Boundary checks for canvas edges (left and right) are handled in checkPlatformCollisions
 }
 
-// Draw platforms
-function drawPlatforms() {
-    ctx.fillStyle = 'gray';
-    platforms.forEach(platform => {
-        ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-    });
+function keyUpHandler(e) {
+    if (e.key == "Right" || e.key == "ArrowRight") {
+        rightPressed = false;
+    } else if (e.key == "Left" || e.key == "ArrowLeft") {
+        leftPressed = false;
+    }
 }
 
-// Platform collision detection
-function checkPlatformCollisions() {
-    player.onGround = false; // Assume player is not on ground until a collision is detected
-    platforms.forEach(platform => {
-        // Check for collision
-        if (player.x < platform.x + platform.width &&
-            player.x + player.width > platform.x &&
-            player.y + player.height < platform.y + platform.height &&
-            player.y + player.height > platform.y) {
+// --- Ball Functionality ---
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+    ctx.fillStyle = '#0095DD';
+    ctx.fill();
+    ctx.closePath();
+}
 
-            // Check if player is landing on top of the platform
-            if (player.dy >= 0 && (player.y + player.height - player.dy) <= platform.y) {
-                 player.y = platform.y - player.height;
-                 player.dy = 0;
-                 player.onGround = true;
+// --- Brick Wall Functionality ---
+function drawBricks() {
+    for (let c = 0; c < brickColumnCount; c++) {
+        for (let r = 0; r < brickRowCount; r++) {
+            const brick = bricks[c][r];
+            if (brick.status == 1) {
+                const brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                const brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                brick.x = brickX; // Store calculated position
+                brick.y = brickY;
+                ctx.beginPath();
+                ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                ctx.fillStyle = '#0095DD';
+                ctx.fill();
+                ctx.closePath();
             }
         }
-    });
-
-    // Boundary checks for canvas edges (left and right)
-    if (player.x < 0) {
-        player.x = 0;
-    }
-    if (player.x + player.width > canvas.width) {
-        player.x = canvas.width - player.width;
     }
 }
 
-// Add to gameLoop
-// Draw coins
-function drawCoins() {
-    ctx.fillStyle = 'gold';
-    coins.forEach(coin => {
-        if (!coin.collected) {
-            ctx.beginPath();
-            ctx.arc(coin.x + coin.width / 2, coin.y + coin.height / 2, coin.width / 2, 0, Math.PI * 2);
-            ctx.fill();
+function collisionDetection() {
+    for (let c = 0; c < brickColumnCount; c++) {
+        for (let r = 0; r < brickRowCount; r++) {
+            const b = bricks[c][r];
+            if (b.status == 1) {
+                if (ballX > b.x && ballX < b.x + brickWidth && ballY > b.y && ballY < b.y + brickHeight) {
+                    ballSpeedY = -ballSpeedY;
+                    b.status = 0;
+                    score++;
+                    // Score display updated in draw() or when life lost
+                    if (score == brickRowCount * brickColumnCount) {
+                        alert("YOU WIN, CONGRATULATIONS!");
+                        document.location.reload();
+                    }
+                }
+            }
         }
-    });
+    }
 }
 
-// Coin collision detection
-function checkCoinCollisions() {
-    coins.forEach(coin => {
-        if (!coin.collected &&
-            player.x < coin.x + coin.width &&
-            player.x + player.width > coin.x &&
-            player.y < coin.y + coin.height &&
-            player.y + player.height > coin.y) {
-
-            coin.collected = true;
-            score += 10;
-            updateScoreDisplay();
-        }
-    });
+// --- Game State & UI Update Functions ---
+function drawLives() {
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#0095DD";
+    ctx.fillText("Lives: " + lives, canvas.width - 65, 20);
 }
 
-// Update score display
-function updateScoreDisplay() {
+// --- Main Game Logic ---
+function update() {
+    // Paddle Movement
+    if (rightPressed && paddleX < canvas.width - paddleWidth) {
+        paddleX += paddleSpeed;
+    } else if (leftPressed && paddleX > 0) {
+        paddleX -= paddleSpeed;
+    }
+
+    // Ball Movement and Collision
+    let nextBallX = ballX + ballSpeedX;
+    let nextBallY = ballY + ballSpeedY;
+
+    // Wall Collisions (Top, Left, Right)
+    if (nextBallX > canvas.width - ballRadius || nextBallX < ballRadius) {
+        ballSpeedX = -ballSpeedX;
+    }
+    if (nextBallY < ballRadius) {
+        ballSpeedY = -ballSpeedY;
+    }
+    // Paddle Collision
+    else if (nextBallY + ballRadius > canvas.height - paddleHeight && // Is the ball at a Y level to hit the paddle?
+             ballY < canvas.height - paddleHeight && // Ensure ball is above paddle before this frame
+             nextBallX > paddleX && nextBallX < paddleX + paddleWidth) { // Is the ball horizontally aligned with the paddle?
+        ballSpeedY = -ballSpeedY;
+        // Optional: Adjust ball's angle based on where it hits the paddle
+        let deltaX = ballX - (paddleX + paddleWidth / 2);
+        ballSpeedX = deltaX * 0.15; // Adjust multiplier for sensitivity (e.g., 0.1 to 0.3)
+                                    // Ensure ballSpeedX doesn't become too small or too large
+        if (ballSpeedX > 4) ballSpeedX = 4;
+        if (ballSpeedX < -4) ballSpeedX = -4;
+        if (ballSpeedX === 0) ballSpeedX = 0.5; // prevent purely vertical bounce if hit in center
+    }
+    // Bottom Wall Collision (Game Over/Life Loss)
+    else if (nextBallY > canvas.height - ballRadius) { // Ball hit bottom
+        lives--;
+        if (!lives) {
+            alert("GAME OVER");
+            document.location.reload();
+            return; // Stop update if game over
+        } else {
+            ballX = canvas.width / 2;
+            ballY = canvas.height - 30;
+            ballSpeedX = 2 * (Math.random() > 0.5 ? 1 : -1); // Randomize initial X direction
+            ballSpeedY = -2;
+            paddleX = (canvas.width - paddleWidth) / 2;
+        }
+    }
+
+    // Update ball position
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
+
+    // Brick Collision
+    collisionDetection();
+}
+
+function draw() {
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw game elements
+    drawBricks();
+    drawBall();
+    drawPaddle();
+    drawLives();
+
+    // Update HTML score display
     scoreDisplay.textContent = 'Score: ' + score;
 }
 
-function update() {
-    updatePlayer();
-    checkPlatformCollisions();
-    checkCoinCollisions(); // Add this line
-    // other update functions will go here
-}
-
-function render() {
-    // Draw background
-    ctx.fillStyle = '#87CEEB'; // Sky blue color
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // ctx.clearRect(0, 0, canvas.width, canvas.height); // This line is now replaced by the background fill
-
-    drawPlayer();
-    drawPlatforms();
-    drawCoins();
-    // other draw functions will go here
-}
-
-// Game loop
 function gameLoop() {
     update();
-    render();
+    draw();
     requestAnimationFrame(gameLoop);
 }
 
-// Set canvas dimensions
-function resizeCanvas() {
-    canvas.width = 800;
-    canvas.height = 600;
-    // Re-initialize platform positions based on new canvas dimensions if necessary
-    platforms[0].y = canvas.height - 20;
-    platforms[0].width = canvas.width;
-    player.y = canvas.height - platforms[0].height - player.height; // Adjust player y to be on the ground platform
-    updateScoreDisplay(); // Initialize score display
-}
-
-// Initialize game
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas); // Adjust canvas on window resize
-
-// Start the game loop
+// Start the game
+scoreDisplay.textContent = 'Score: ' + score; // Initial score display
+// The first call to draw() in gameLoop() will also set initial lives.
 gameLoop();
